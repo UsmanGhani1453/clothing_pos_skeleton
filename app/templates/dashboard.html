@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Shop POS{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="label">Today's Revenue</div>
+    <div class="value" id="today-revenue">Rs. 0</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Today's Orders</div>
+    <div class="value" id="today-orders">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Products in Stock</div>
+    <div class="value" id="product-count">0</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Quick Actions</h2>
+  <div class="form-row">
+    <a href="/billing"><button>New Sale</button></a>
+    <a href="/inventory"><button class="secondary">Manage Inventory</button></a>
+    <a href="/reports"><button class="secondary">View Reports</button></a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadDashboard() {
+  const summary = await fetch('/api/reports/summary').then(r => r.json());
+  document.getElementById('today-revenue').innerText = 'Rs. ' + summary.total_revenue.toLocaleString();
+  document.getElementById('today-orders').innerText = summary.total_orders;
+
+  const products = await fetch('/api/products/').then(r => r.json());
+  document.getElementById('product-count').innerText = products.length;
+}
+loadDashboard();
+</script>
+{% endblock %}

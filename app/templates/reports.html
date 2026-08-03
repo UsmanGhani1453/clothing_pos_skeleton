@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Reports - Shop POS{% endblock %}
+{% block content %}
+<h1>Reports</h1>
+
+<div class="card">
+  <div class="form-row" style="align-items:flex-end;">
+    <label>From
+      <input type="date" id="start-date">
+    </label>
+    <label>To
+      <input type="date" id="end-date">
+    </label>
+    <button id="apply-btn">Apply</button>
+    <button type="button" class="secondary" id="today-btn">Today</button>
+    <button type="button" class="secondary" id="week-btn">Last 7 Days</button>
+    <button type="button" class="secondary" id="month-btn">This Month</button>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="label">Total Revenue</div>
+    <div class="value" id="total-revenue">Rs. 0</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Total Orders</div>
+    <div class="value" id="total-orders">0</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Average Order Value</div>
+    <div class="value" id="avg-order">Rs. 0</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Sales</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Date &amp; Time</th>
+        <th>Payment</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody id="sales-table-body"></tbody>
+  </table>
+  <p id="empty-msg" style="display:none; color:#6b7280; padding:12px 0;">No sales in this date range.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const startInput = document.getElementById('start-date');
+const endInput = document.getElementById('end-date');
+const tableBody = document.getElementById('sales-table-body');
+const emptyMsg = document.getElementById('empty-msg');
+
+function toISODate(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function setRange(daysBack) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - daysBack);
+  startInput.value = toISODate(start);
+  endInput.value = toISODate(end);
+  loadReport();
+}
+
+function setThisMonth() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  startInput.value = toISODate(start);
+  endInput.value = toISODate(now);
+  loadReport();
+}
+
+document.getElementById('today-btn').addEventListener('click', () => setRange(0));
+document.getElementById('week-btn').addEventListener('click', () => setRange(6));
+document.getElementById('month-btn').addEventListener('click', setThisMonth);
+document.getElementById('apply-btn').addEventListener('click', loadReport);
+
+async function loadReport() {
+  const start = startInput.value;
+  const end = endInput.value;
+  const url = `/api/reports/summary?start=${start}&end=${end}`;
+  const data = await fetch(url).then(r => r.json());
+
+  document.getElementById('total-revenue').innerText = formatCurrency(data.total_revenue);
+  document.getElementById('total-orders').innerText = data.total_orders;
+  const avg = data.total_orders > 0 ? data.total_revenue / data.total_orders : 0;
+  document.getElementById('avg-order').innerText = formatCurrency(avg);
+
+  tableBody.innerHTML = '';
+  emptyMsg.style.display = data.sales.length === 0 ? 'block' : 'none';
+
+  data.sales.forEach(s => {
+    const tr = document.createElement('tr');
+    const dt = new Date(s.created_at);
+    tr.innerHTML = `
+      <td>${escapeHtml(s.invoice_no)}</td>
+      <td>${dt.toLocaleString()}</td>
+      <td style="text-transform:capitalize;">${escapeHtml(s.payment_method)}</td>
+      <td>${formatCurrency(s.total_amount)}</td>
+    `;
+    tableBody.appendChild(tr);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.innerText = str;
+  return div.innerHTML;
+}
+
+// default to today on load
+setRange(0);
+</script>
+{% endblock %}

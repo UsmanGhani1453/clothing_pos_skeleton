@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Login - Shop POS</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<style>
+  body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:#1f2430; }
+  .login-box { background:#fff; padding:36px; border-radius:10px; width:340px; box-shadow:0 10px 30px rgba(0,0,0,0.3); }
+  .login-box h1 { text-align:center; margin-bottom:6px; }
+  .login-box .sub { text-align:center; color:#6b7280; font-size:13px; margin-bottom:24px; }
+  .login-box label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:#4b5563; margin-bottom:14px; }
+  .login-box input { width:100%; }
+  .login-box button { width:100%; padding:10px; font-size:15px; margin-top:6px; }
+  .error-msg { color:#dc2626; font-size:13px; text-align:center; min-height:18px; margin-bottom:8px; }
+  .hint { text-align:center; color:#9ca3af; font-size:12px; margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="login-box">
+  <h1>👕 Shop POS</h1>
+  <div class="sub">Sign in to continue</div>
+
+  <form id="login-form">
+    <label>Username
+      <input type="text" id="username" required autofocus>
+    </label>
+    <label>Password
+      <input type="password" id="password" required>
+    </label>
+    <div class="error-msg" id="error-msg"></div>
+    <button type="submit">Sign In</button>
+  </form>
+
+  <div class="hint">Default login: admin / admin123<br>(change this after first login)</div>
+</div>
+
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorMsg = document.getElementById('error-msg');
+  errorMsg.innerText = '';
+
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      errorMsg.innerText = err.detail || 'Login failed.';
+      return;
+    }
+    window.location.href = '/';
+  } catch (err) {
+    errorMsg.innerText = 'Network error. Is the server running?';
+  }
+});
+</script>
+</body>
+</html>

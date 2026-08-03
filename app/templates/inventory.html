@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Inventory - Shop POS{% endblock %}
+{% block content %}
+<h1>Inventory</h1>
+
+<div class="card">
+  <h2 id="form-title">Add New Product</h2>
+  <form id="product-form">
+    <input type="hidden" id="product-id">
+    <div class="form-row">
+      <label>Name
+        <input type="text" id="name" required placeholder="e.g. Men Kurta">
+      </label>
+      <label>Category
+        <input type="text" id="category" placeholder="e.g. Kurta">
+      </label>
+      <label>Size
+        <input type="text" id="size" placeholder="e.g. L">
+      </label>
+      <label>Color
+        <input type="text" id="color" placeholder="e.g. Blue">
+      </label>
+      <label>Barcode (optional)
+        <input type="text" id="barcode" placeholder="scan or type">
+      </label>
+    </div>
+    <div class="form-row">
+      <label>Cost Price (Rs.)
+        <input type="number" id="cost_price" step="0.01" min="0" value="0">
+      </label>
+      <label>Sale Price (Rs.)
+        <input type="number" id="sale_price" step="0.01" min="0" required>
+      </label>
+      <label>Stock Quantity
+        <input type="number" id="stock_qty" min="0" value="0">
+      </label>
+    </div>
+    <div class="form-row">
+      <button type="submit" id="save-btn">Add Product</button>
+      <button type="button" class="secondary" id="cancel-edit" style="display:none;">Cancel Edit</button>
+    </div>
+  </form>
+  <p id="form-error" style="color:#dc2626; font-size:14px;"></p>
+</div>
+
+<div class="card">
+  <div class="form-row" style="justify-content: space-between; align-items:center;">
+    <h2 style="margin:0;">Products</h2>
+    <input type="text" id="search-box" placeholder="Search by name..." style="width:250px;">
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Size</th>
+        <th>Color</th>
+        <th>Cost</th>
+        <th>Sale Price</th>
+        <th>Stock</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="product-table-body">
+    </tbody>
+  </table>
+  <p id="empty-msg" style="display:none; color:#6b7280; padding:12px 0;">No products found.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const form = document.getElementById('product-form');
+const tableBody = document.getElementById('product-table-body');
+const searchBox = document.getElementById('search-box');
+const formTitle = document.getElementById('form-title');
+const saveBtn = document.getElementById('save-btn');
+const cancelEditBtn = document.getElementById('cancel-edit');
+const formError = document.getElementById('form-error');
+const emptyMsg = document.getElementById('empty-msg');
+
+function getFormData() {
+  return {
+    name: document.getElementById('name').value.trim(),
+    category: document.getElementById('category').value.trim(),
+    size: document.getElementById('size').value.trim(),
+    color: document.getElementById('color').value.trim(),
+    barcode: document.getElementById('barcode').value.trim() || null,
+    cost_price: parseFloat(document.getElementById('cost_price').value) || 0,
+    sale_price: parseFloat(document.getElementById('sale_price').value),
+    stock_qty: parseInt(document.getElementById('stock_qty').value) || 0,
+  };
+}
+
+function clearForm() {
+  form.reset();
+  document.getElementById('product-id').value = '';
+  formTitle.innerText = 'Add New Product';
+  saveBtn.innerText = 'Add Product';
+  cancelEditBtn.style.display = 'none';
+  formError.innerText = '';
+}
+
+cancelEditBtn.addEventListener('click', clearForm);
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  formError.innerText = '';
+  const data = getFormData();
+
+  if (!data.name || !data.sale_price) {
+    formError.innerText = 'Name and Sale Price are required.';
+    return;
+  }
+
+  const productId = document.getElementById('product-id').value;
+  const url = productId ? `/api/products/${productId}` : '/api/products/';
+  const method = productId ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      formError.innerText = err.detail || 'Something went wrong.';
+      return;
+    }
+    clearForm();
+    loadProducts();
+  } catch (err) {
+    formError.innerText = 'Network error. Is the server running?';
+  }
+});
+
+function editProduct(p) {
+  document.getElementById('product-id').value = p.id;
+  document.getElementById('name').value = p.name;
+  document.getElementById('category').value = p.category || '';
+  document.getElementById('size').value = p.size || '';
+  document.getElementById('color').value = p.color || '';
+  document.getElementById('barcode').value = p.barcode || '';
+  document.getElementById('cost_price').value = p.cost_price;
+  document.getElementById('sale_price').value = p.sale_price;
+  document.getElementById('stock_qty').value = p.stock_qty;
+
+  formTitle.innerText = 'Edit Product';
+  saveBtn.innerText = 'Save Changes';
+  cancelEditBtn.style.display = 'inline-block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function deleteProduct(id, name) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+  if (res.ok) {
+    loadProducts();
+  } else {
+    alert('Failed to delete product.');
+  }
+}
+
+async function loadProducts() {
+  const search = searchBox.value.trim();
+  const url = search ? `/api/products/?search=${encodeURIComponent(search)}` : '/api/products/';
+  const products = await fetch(url).then(r => r.json());
+
+  tableBody.innerHTML = '';
+  emptyMsg.style.display = products.length === 0 ? 'block' : 'none';
+
+  products.forEach(p => {
+    const tr = document.createElement('tr');
+    const lowStock = p.stock_qty <= 3;
+    tr.innerHTML = `
+      <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.category || '-')}</td>
+      <td>${escapeHtml(p.size || '-')}</td>
+      <td>${escapeHtml(p.color || '-')}</td>
+      <td>${formatCurrency(p.cost_price)}</td>
+      <td>${formatCurrency(p.sale_price)}</td>
+      <td style="${lowStock ? 'color:#dc2626; font-weight:600;' : ''}">${p.stock_qty}</td>
+      <td>
+        <button class="secondary edit-btn" style="padding:6px 10px; font-size:13px;">Edit</button>
+        <button class="secondary delete-btn" style="padding:6px 10px; font-size:13px; background:#fee2e2; color:#dc2626;">Delete</button>
+      </td>
+    `;
+    tr.querySelector('.edit-btn').addEventListener('click', () => editProduct(p));
+    tr.querySelector('.delete-btn').addEventListener('click', () => deleteProduct(p.id, p.name));
+    tableBody.appendChild(tr);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.innerText = str;
+  return div.innerHTML;
+}
+
+let searchTimeout;
+searchBox.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(loadProducts, 250);
+});
+
+loadProducts();
+</script>
+{% endblock %}

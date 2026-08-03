@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Settings - Shop POS{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+<div class="card" style="max-width:500px;">
+  <h2>Shop Information</h2>
+  <p style="color:#6b7280; font-size:13px; margin-bottom:16px;">This appears on printed receipts.</p>
+  <form id="settings-form">
+    <div class="form-row" style="flex-direction:column;">
+      <label>Shop Name
+        <input type="text" id="shop_name" required>
+      </label>
+      <label>Address
+        <input type="text" id="shop_address">
+      </label>
+      <label>Phone (optional)
+        <input type="text" id="shop_phone">
+      </label>
+    </div>
+    <button type="submit">Save Settings</button>
+    <span id="save-msg" style="color:#16a34a; font-size:14px; margin-left:10px;"></span>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const form = document.getElementById('settings-form');
+const saveMsg = document.getElementById('save-msg');
+
+async function loadSettings() {
+  const res = await fetch('/api/settings/');
+  const data = await res.json();
+  document.getElementById('shop_name').value = data.shop_name || '';
+  document.getElementById('shop_address').value = data.shop_address || '';
+  document.getElementById('shop_phone').value = data.shop_phone || '';
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  saveMsg.innerText = '';
+  const payload = {
+    shop_name: document.getElementById('shop_name').value.trim(),
+    shop_address: document.getElementById('shop_address').value.trim(),
+    shop_phone: document.getElementById('shop_phone').value.trim(),
+  };
+  const res = await fetch('/api/settings/', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.ok) {
+    saveMsg.innerText = 'Saved!';
+    setTimeout(() => saveMsg.innerText = '', 2000);
+  } else {
+    saveMsg.style.color = '#dc2626';
+    saveMsg.innerText = 'Failed to save.';
+  }
+});
+
+loadSettings();
+</script>
+{% endblock %}

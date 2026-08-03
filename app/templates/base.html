@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}Clothing Shop POS{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <nav class="sidebar">
+    <div class="brand">👕 Shop POS</div>
+    {% if user.role == 'owner' %}
+    <a href="/" class="nav-link">Dashboard</a>
+    {% endif %}
+    <a href="/billing" class="nav-link">Billing</a>
+    {% if user.role == 'owner' %}
+    <a href="/inventory" class="nav-link">Inventory</a>
+    <a href="/reports" class="nav-link">Reports</a>
+    <a href="/users" class="nav-link">Users</a>
+    <a href="/settings" class="nav-link">Settings</a>
+    {% endif %}
+    <div style="flex:1;"></div>
+    <div style="padding:12px 20px; border-top:1px solid #333a4a; margin-top:10px;">
+      <div style="font-size:13px; color:#c7cad1;">{{ user.username }}</div>
+      <div style="font-size:11px; color:#8b90a0; text-transform:capitalize; margin-bottom:10px;">{{ user.role }}</div>
+      <button id="logout-btn" class="secondary" style="width:100%; font-size:13px;">Logout</button>
+    </div>
+  </nav>
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="/static/js/app.js"></script>
+<script>
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/login';
+});
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
