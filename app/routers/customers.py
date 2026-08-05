@@ -1,0 +1,44 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+from .. import models, schemas
+from ..database import get_db
+from ..auth import get_current_user
+
+router = APIRouter(prefix="/api/customers", tags=["customers"])
+
+@router.get("/", response_model=List[schemas.CustomerOut])
+def list_customers(db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
+    return db.query(models.Customer).order_by(models.Customer.name).all()
+
+@router.post("/", response_model=schemas.CustomerOut)
+def create_customer(customer: schemas.CustomerCreate, db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
+    db_customer = models.Customer(**customer.dict())
+    db.add(db_customer)
+    db.commit()
+    db.refresh(db_customer)
+    return db_customer
+
+@router.get("/{customer_id}/ledger", response_model=List[schemas.LedgerEntryOut])
+def get_ledger(customer_id: int, db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
+    return db.query(models.LedgerEntry).filter(models.LedgerEntry.customer_id == customer_id).order_by(models.LedgerEntry.created_at.desc()).all()
+
+@router.post("/{customer_id}/pay")
+def record_payment(customer_id: int, amount: float, db: Session = Depends(get_db), _: models.User = Depends(get_current_user)):
+    customer = db.query(models.Customer).filter(models.Customer.id == customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Decrease balance
+    customer.balance -= amount
+    
+    # Log payment in ledger
+    entry = models.LedgerEntry(
+        customer_id=customer.id, 
+        amount=amount, 
+        entry_type="payment", 
+        description="Received payment for Khata"
+    )
+    db.add(entry)
+    db.commit()
+    return {"ok": True, "new_balance": customer.balance}

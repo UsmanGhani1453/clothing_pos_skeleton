@@ -9,7 +9,7 @@ import secrets
 
 from . import models
 from .database import engine, get_db, SessionLocal
-from .routers import inventory, billing, reports, auth as auth_router, settings as settings_router
+from .routers import inventory, billing, reports, auth as auth_router, settings as settings_router, customers
 from .auth import get_current_user_optional, get_current_user, ensure_default_owner
 from .receipts import generate_receipt_pdf
 from .settings import get_all_settings
@@ -26,20 +26,19 @@ finally:
 
 app = FastAPI(title="Clothing Shop POS")
 
-# Session cookie secret - randomized per run is fine for a single-machine offline app.
-# (Sessions reset on restart; acceptable for a shop POS used on one PC.)
 app.add_middleware(SessionMiddleware, secret_key=secrets.token_hex(32))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
+# API Routers
 app.include_router(inventory.router)
 app.include_router(billing.router)
 app.include_router(reports.router)
 app.include_router(auth_router.router)
 app.include_router(settings_router.router)
+app.include_router(customers.router)
 
 
 @app.get("/login")
@@ -106,6 +105,14 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     if user.role != "owner":
         return RedirectResponse(url="/billing")
     return templates.TemplateResponse(request, "settings.html", {"user": user})
+
+
+@app.get("/customers")
+def customers_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_optional(request, db)
+    if not user:
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "customers.html", {"user": user})
 
 
 @app.get("/receipt/{sale_id}")

@@ -35,6 +35,7 @@ class SaleCreate(BaseModel):
     discount: float = 0.0
     payment_method: str = "cash"
     cashier: Optional[str] = ""
+    customer_id: Optional[int] = None
 
 
 class SaleItemOut(BaseModel):
@@ -56,6 +57,29 @@ class SaleOut(BaseModel):
     cashier: Optional[str] = ""
     created_at: datetime
     items: List[SaleItemOut] = []
+    customer: Optional[CustomerOut] = None 
+    class Config:
+        from_attributes = True
 
+class CustomerBase(BaseModel):
+    name: str
+    phone: Optional[str] = None
+
+class CustomerCreate(CustomerBase):
+    pass
+
+class CustomerOut(CustomerBase):
+    id: int
+    balance: float
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class LedgerEntryOut(BaseModel):
+    id: int
+    amount: float
+    entry_type: str
+    description: str
+    created_at: datetime
     class Config:
         from_attributes = True

@@ -48,7 +48,6 @@ To run the application in development mode:
 ```bash
 python main.py
 ```
-*Note: Default login on the first run is `admin` / `admin123`.*
 
 ## 📦 Packaging as a Standalone Executable
 

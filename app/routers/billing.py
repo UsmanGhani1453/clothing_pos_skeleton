@@ -45,13 +45,35 @@ def create_sale(sale: schemas.SaleCreate, db: Session = Depends(get_db), user: m
         product.stock_qty -= item.quantity
 
     total_after_discount = max(total - sale.discount, 0)
+    invoice_no = generate_invoice_no()
+
+    # --- Udhar / Khata Logic ---
+    if sale.payment_method == "udhar":
+        if not sale.customer_id:
+            raise HTTPException(status_code=400, detail="Customer must be selected for Udhar.")
+
+        customer = db.query(models.Customer).filter(models.Customer.id == sale.customer_id).first()
+        if not customer:
+            raise HTTPException(status_code=404, detail="Customer not found.")
+
+        # Increase debt balance
+        customer.balance += total_after_discount
+
+        # Create ledger entry
+        db.add(models.LedgerEntry(
+            customer_id=customer.id,
+            amount=total_after_discount,
+            entry_type="udhar",
+            description=f"Bill: {invoice_no}",
+        ))
 
     db_sale = models.Sale(
-        invoice_no=generate_invoice_no(),
+        invoice_no=invoice_no,
         total_amount=total_after_discount,
         discount=sale.discount,
         payment_method=sale.payment_method,
         cashier=user.username,
+        customer_id=sale.customer_id,
         items=sale_items,
     )
     db.add(db_sale)

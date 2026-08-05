@@ -47,9 +47,9 @@ class Sale(Base):
     payment_method = Column(String, default="cash")
     cashier = Column(String, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
-
+    customer = relationship("Customer", back_populates="sales")
 
 class SaleItem(Base):
     __tablename__ = "sale_items"
@@ -63,3 +63,23 @@ class SaleItem(Base):
     subtotal = Column(Float, default=0.0)
 
     sale = relationship("Sale", back_populates="items")
+
+class Customer(Base):
+    __tablename__ = "customers"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True, nullable=False)
+    phone = Column(String, unique=True, index=True, nullable=True)
+    balance = Column(Float, default=0.0)  # Positive balance means they owe you money (Udhar)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sales = relationship("Sale", back_populates="customer")
+
+class LedgerEntry(Base):
+    __tablename__ = "ledger_entries"
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"))
+    amount = Column(Float, nullable=False)
+    entry_type = Column(String)  # 'udhar' (credit taken) or 'payment' (clearing debt)
+    description = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    customer = relationship("Customer")
