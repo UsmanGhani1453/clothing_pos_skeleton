@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Reports - Shop POS{% endblock %}
+
 {% block content %}
 <h1>Reports</h1>
 
@@ -18,10 +19,15 @@
   </div>
 </div>
 
-<div class="stat-grid">
+<!-- Overriding the grid layout to 4 columns via inline style -->
+<div class="stat-grid" style="grid-template-columns: repeat(4, 1fr);">
   <div class="stat-card">
     <div class="label">Total Revenue</div>
     <div class="value" id="total-revenue">Rs. 0</div>
+  </div>
+  <div class="stat-card" style="border-left: 4px solid #16a34a;">
+    <div class="label">Total Profit</div>
+    <div class="value" id="total-profit" style="color: #16a34a;">Rs. 0</div>
   </div>
   <div class="stat-card">
     <div class="label">Total Orders</div>
@@ -42,6 +48,7 @@
         <th>Date &amp; Time</th>
         <th>Payment</th>
         <th>Total</th>
+        <th>Profit</th>
       </tr>
     </thead>
     <tbody id="sales-table-body"></tbody>
@@ -90,13 +97,15 @@ async function loadReport() {
   const data = await fetch(url).then(r => r.json());
 
   document.getElementById('total-revenue').innerText = formatCurrency(data.total_revenue);
+  document.getElementById('total-profit').innerText = formatCurrency(data.total_profit);
   document.getElementById('total-orders').innerText = data.total_orders;
+  
   const avg = data.total_orders > 0 ? data.total_revenue / data.total_orders : 0;
   document.getElementById('avg-order').innerText = formatCurrency(avg);
 
   tableBody.innerHTML = '';
   emptyMsg.style.display = data.sales.length === 0 ? 'block' : 'none';
-
+  
   data.sales.forEach(s => {
     const tr = document.createElement('tr');
     const dt = new Date(s.created_at);
@@ -105,6 +114,7 @@ async function loadReport() {
       <td>${dt.toLocaleString()}</td>
       <td style="text-transform:capitalize;">${escapeHtml(s.payment_method)}</td>
       <td>${formatCurrency(s.total_amount)}</td>
+      <td style="color:#16a34a; font-weight:600;">${formatCurrency(s.profit)}</td>
     `;
     tableBody.appendChild(tr);
   });
