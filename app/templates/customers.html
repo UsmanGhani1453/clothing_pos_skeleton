@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Customers - Shop POS{% endblock %}
+{% block content %}
+<h1>Customers / Udhar / Khata</h1>
+
+<div style="display:flex; gap:20px; align-items:flex-start;">
+
+  <div class="card" style="flex:1; min-width:320px;">
+    <h2>Add Customer</h2>
+    <form id="customer-form">
+      <div class="form-row">
+        <label style="flex:1;">Name
+          <input type="text" id="cust-name" required placeholder="e.g. Ali Raza">
+        </label>
+        <label style="flex:1;">Phone (optional)
+          <input type="text" id="cust-phone" placeholder="03xx-xxxxxxx">
+        </label>
+      </div>
+      <div class="form-row">
+        <button type="submit">Add Customer</button>
+      </div>
+      <p id="customer-error" style="color:#dc2626; font-size:14px;"></p>
+    </form>
+  </div>
+
+  <div class="card" style="flex:2; min-width:340px;">
+    <h2>Customers</h2>
+    <input type="text" id="customer-search" placeholder="Search by name or phone..." style="width:100%; margin-bottom:12px;">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Phone</th><th>Balance (Owed)</th><th></th></tr>
+      </thead>
+      <tbody id="customer-list"></tbody>
+    </table>
+    <p id="customer-empty" style="color:#6b7280; padding:12px 0; display:none;">No customers yet.</p>
+  </div>
+
+</div>
+
+<div id="ledger-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100;">
+  <div class="card" style="width:420px; max-height:80vh; overflow-y:auto;">
+    <h2 id="ledger-title">Ledger</h2>
+
+    <div class="form-row" style="margin-top:8px;">
+      <label style="flex:1;">Record Payment (Rs.)
+        <input type="number" id="pay-amount" min="0" step="0.01" value="0">
+      </label>
+      <button id="pay-btn" style="align-self:flex-end;">Record</button>
+    </div>
+    <p id="pay-error" style="color:#dc2626; font-size:14px;"></p>
+
+    <h3 style="margin-top:16px;">History</h3>
+    <div id="ledger-entries"></div>
+
+    <button id="close-ledger-btn" style="width:100%; margin-top:16px;" class="secondary">Close</button>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allCustomers = [];
+let activeCustomerId = null;
+
+const customerList = document.getElementById('customer-list');
+const customerEmpty = document.getElementById('customer-empty');
+const customerSearch = document.getElementById('customer-search');
+const customerError = document.getElementById('customer-error');
+
+async function loadCustomers() {
+  const customers = await fetch('/api/customers/').then(r => r.json());
+  allCustomers = customers;
+  renderCustomers();
+}
+
+function renderCustomers() {
+  const query = customerSearch.value.trim().toLowerCase();
+  const filtered = allCustomers.filter(c =>
+    c.name.toLowerCase().includes(query) || (c.phone || '').toLowerCase().includes(query)
+  );
+
+  customerList.innerHTML = '';
+  customerEmpty.style.display = filtered.length === 0 ? 'block' : 'none';
+
+  filtered.forEach(c => {
+    const tr = document.createElement('tr');
+    const owes = c.balance > 0;
+    tr.innerHTML = `
+      <td>${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.phone || '-')}</td>
+      <td style="color:${owes ? '#dc2626' : '#16a34a'}; font-weight:600;">Rs. ${Number(c.balance).toLocaleString()}</td>
+      <td><button class="secondary ledger-btn" style="padding:6px 12px; font-size:13px;">Ledger</button></td>
+    `;
+    tr.querySelector('.ledger-btn').addEventListener('click', () => openLedger(c));
+    customerList.appendChild(tr);
+  });
+}
+
+customerSearch.addEventListener('input', renderCustomers);
+
+document.getElementById('customer-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  customerError.innerText = '';
+  const payload = {
+    name: document.getElementById('cust-name').value.trim(),
+    phone: document.getElementById('cust-phone').value.trim() || null,
+  };
+  const res = await fetch('/api/customers/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    customerError.innerText = err.detail || 'Could not add customer.';
+    return;
+  }
+  document.getElementById('cust-name').value = '';
+  document.getElementById('cust-phone').value = '';
+  loadCustomers();
+});
+
+async function openLedger(customer) {
+  activeCustomerId = customer.id;
+  document.getElementById('ledger-title').innerText = `${customer.name} — Rs. ${Number(customer.balance).toLocaleString()} owed`;
+  document.getElementById('pay-amount').value = 0;
+  document.getElementById('pay-error').innerText = '';
+  await loadLedger();
+  document.getElementById('ledger-modal').style.display = 'flex';
+}
+
+async function loadLedger() {
+  const entries = await fetch(`/api/customers/${activeCustomerId}/ledger`).then(r => r.json());
+  const container = document.getElementById('ledger-entries');
+  if (entries.length === 0) {
+    container.innerHTML = '<p style="color:#6b7280;">No entries yet.</p>';
+    return;
+  }
+  container.innerHTML = entries.map(e => `
+    <div class="cart-row">
+      <span>
+        ${e.entry_type === 'udhar' ? '🔴 Udhar' : '🟢 Payment'} —
+        ${new Date(e.created_at).toLocaleDateString()}
+        ${e.description ? `<br><span style="color:#6b7280; font-size:12px;">${escapeHtml(e.description)}</span>` : ''}
+      </span>
+      <span style="font-weight:600;">Rs. ${Number(e.amount).toLocaleString()}</span>
+    </div>
+  `).join('');
+}
+
+document.getElementById('pay-btn').addEventListener('click', async () => {
+  const payErr = document.getElementById('pay-error');
+  payErr.innerText = '';
+  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  if (amount <= 0) {
+    payErr.innerText = 'Enter an amount greater than 0.';
+    return;
+  }
+  const res = await fetch(`/api/customers/${activeCustomerId}/pay?amount=${encodeURIComponent(amount)}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    payErr.innerText = err.detail || 'Could not record payment.';
+    return;
+  }
+  document.getElementById('pay-amount').value = 0;
+  await loadLedger();
+  await loadCustomers();
+  const updated = allCustomers.find(c => c.id === activeCustomerId);
+  if (updated) {
+    document.getElementById('ledger-title').innerText = `${updated.name} — Rs. ${Number(updated.balance).toLocaleString()} owed`;
+  }
+});
+
+document.getElementById('close-ledger-btn').addEventListener('click', () => {
+  document.getElementById('ledger-modal').style.display = 'none';
+});
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.innerText = str;
+  return div.innerHTML;
+}
+
+loadCustomers();
+</script>
+{% endblock %}

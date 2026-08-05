@@ -37,6 +37,14 @@
       </label>
     </div>
 
+    <div class="form-row" id="customer-row" style="margin-top:12px; display:none;">
+      <label style="flex:1;">Customer (required for Udhar)
+        <select id="customer-select">
+          <option value="">Select customer...</option>
+        </select>
+      </label>
+    </div>
+
     <div class="total-line">
       <span>Total</span>
       <span id="cart-total">Rs. 0</span>
@@ -187,6 +195,26 @@ function updateTotal() {
 
 discountInput.addEventListener('input', updateTotal);
 
+const paymentMethodSelect = document.getElementById('payment-method');
+const customerRow = document.getElementById('customer-row');
+const customerSelect = document.getElementById('customer-select');
+
+async function loadCustomersForBilling() {
+  try {
+    const customers = await fetch('/api/customers/').then(r => r.json());
+    customerSelect.innerHTML = '<option value="">Select customer...</option>' +
+      customers.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.phone ? ' (' + escapeHtml(c.phone) + ')' : ''}</option>`).join('');
+  } catch (err) {
+    // ignore - customer list is only needed for Udhar
+  }
+}
+
+paymentMethodSelect.addEventListener('change', () => {
+  const isUdhar = paymentMethodSelect.value === 'udhar';
+  customerRow.style.display = isUdhar ? 'flex' : 'none';
+  if (isUdhar) loadCustomersForBilling();
+});
+
 document.getElementById('clear-cart-btn').addEventListener('click', () => {
   if (cart.length === 0) return;
   if (confirm('Clear the cart?')) {
@@ -202,11 +230,20 @@ document.getElementById('checkout-btn').addEventListener('click', async () => {
     return;
   }
 
+  const paymentMethod = paymentMethodSelect.value;
+  const customerId = customerSelect.value ? parseInt(customerSelect.value, 10) : null;
+
+  if (paymentMethod === 'udhar' && !customerId) {
+    checkoutError.innerText = 'Please select a customer for Udhar / Khata.';
+    return;
+  }
+
   const payload = {
     items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
     discount: parseFloat(discountInput.value) || 0,
-    payment_method: document.getElementById('payment-method').value,
-    cashier: ''
+    payment_method: paymentMethod,
+    cashier: '',
+    customer_id: customerId,
   };
 
   try {
@@ -215,19 +252,28 @@ document.getElementById('checkout-btn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) {
-      const err = await res.json();
-      checkoutError.innerText = err.detail || 'Checkout failed.';
+
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      checkoutError.innerText = `Server error (status ${res.status}). Check the server logs.`;
       return;
     }
-    const sale = await res.json();
+
+    if (!res.ok) {
+      checkoutError.innerText = data.detail || `Checkout failed (status ${res.status}).`;
+      return;
+    }
+
+    const sale = data;
     showReceipt(sale);
     cart = [];
     renderCart();
     discountInput.value = 0;
     searchProducts(); // refresh stock numbers
   } catch (err) {
-    checkoutError.innerText = 'Network error. Is the server running?';
+    checkoutError.innerText = 'Could not reach the server. Is it still running?';
   }
 });
 

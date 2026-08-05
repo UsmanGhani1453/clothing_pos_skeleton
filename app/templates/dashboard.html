@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Dashboard - Shop POS{% endblock %}
+
 {% block content %}
 <h1>Dashboard</h1>
 
@@ -26,18 +27,120 @@
     <a href="/reports"><button class="secondary">View Reports</button></a>
   </div>
 </div>
+
+<div style="display:flex; gap:20px; align-items:flex-start; margin-top: 20px;">
+  <!-- Low Stock Alerts -->
+  <div class="card" style="border-left: 4px solid #dc2626; flex: 1;">
+    <h2><span style="color: #dc2626;">⚠️</span> Low Stock Alerts</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Size/Color</th>
+          <th>Stock</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="low-stock-list"></tbody>
+    </table>
+    <p id="low-stock-empty" style="display:none; color:#16a34a; padding:12px 0; font-weight: 500;">
+      All products are sufficiently stocked.
+    </p>
+  </div>
+
+  <!-- Udhar / Khata Dues -->
+  <div class="card" style="border-left: 4px solid #f59e0b; flex: 1;">
+    <h2><span style="color: #f59e0b;">📓</span> Udhar / Khata Dues</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>Phone</th>
+          <th>Amount Owed</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="dues-list"></tbody>
+    </table>
+    <p id="dues-empty" style="display:none; color:#16a34a; padding:12px 0; font-weight: 500;">
+      No pending Udhar / Khata!
+    </p>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 async function loadDashboard() {
+  // Fetch Summary Stats
   const summary = await fetch('/api/reports/summary').then(r => r.json());
   document.getElementById('today-revenue').innerText = 'Rs. ' + summary.total_revenue.toLocaleString();
   document.getElementById('today-orders').innerText = summary.total_orders;
 
   const products = await fetch('/api/products/').then(r => r.json());
   document.getElementById('product-count').innerText = products.length;
+  
+  // Load Alerts
+  loadLowStockAlerts();
+  loadDuesAlerts();
 }
+
+async function loadLowStockAlerts() {
+  const lowStockProducts = await fetch('/api/products/low-stock?threshold=5').then(r => r.json());
+  
+  const tbody = document.getElementById('low-stock-list');
+  const emptyMsg = document.getElementById('low-stock-empty');
+  
+  tbody.innerHTML = '';
+  emptyMsg.style.display = lowStockProducts.length === 0 ? 'block' : 'none';
+  
+  lowStockProducts.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.size || '-')} / ${escapeHtml(p.color || '-')}</td>
+      <td style="color:#dc2626; font-weight:700;">${p.stock_qty}</td>
+      <td>
+        <a href="/inventory" style="text-decoration:none;">
+          <button class="secondary" style="padding:4px 8px; font-size:12px;">Update</button>
+        </a>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function loadDuesAlerts() {
+  const dues = await fetch('/api/customers/dues').then(r => r.json());
+  
+  const tbody = document.getElementById('dues-list');
+  const emptyMsg = document.getElementById('dues-empty');
+  
+  tbody.innerHTML = '';
+  emptyMsg.style.display = dues.length === 0 ? 'block' : 'none';
+  
+  dues.forEach(c => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.phone || '-')}</td>
+      <td style="color:#dc2626; font-weight:700;">Rs. ${Number(c.balance).toLocaleString()}</td>
+      <td>
+        <a href="/customers" style="text-decoration:none;">
+          <button class="secondary" style="padding:4px 8px; font-size:12px;">Ledger</button>
+        </a>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.innerText = str;
+  return div.innerHTML;
+}
+
 loadDashboard();
 </script>
 {% endblock %}

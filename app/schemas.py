@@ -48,19 +48,6 @@ class SaleItemOut(BaseModel):
         from_attributes = True
 
 
-class SaleOut(BaseModel):
-    id: int
-    invoice_no: str
-    total_amount: float
-    discount: float
-    payment_method: str
-    cashier: Optional[str] = ""
-    created_at: datetime
-    items: List[SaleItemOut] = []
-    customer: Optional[CustomerOut] = None 
-    class Config:
-        from_attributes = True
-
 class CustomerBase(BaseModel):
     name: str
     phone: Optional[str] = None
@@ -72,6 +59,20 @@ class CustomerOut(CustomerBase):
     id: int
     balance: float
     created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+class SaleOut(BaseModel):
+    id: int
+    invoice_no: str
+    total_amount: float
+    discount: float
+    payment_method: str
+    cashier: Optional[str] = ""
+    created_at: datetime
+    items: List[SaleItemOut] = []
+    customer: Optional[CustomerOut] = None
     class Config:
         from_attributes = True
 

@@ -14,7 +14,18 @@ def find_free_port():
 
 
 def run_server(port):
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    config = uvicorn.Config(
+        app="app.main:app", 
+        host="127.0.0.1", 
+        port=port, 
+        log_level="warning"
+    )
+    server = uvicorn.Server(config)
+    
+    # Disable signal handling so it doesn't crash the background thread
+    server.install_signal_handlers = lambda: None 
+    
+    server.run()
 
 
 def wait_for_server(port, timeout=10):
@@ -44,4 +55,4 @@ if __name__ == "__main__":
         height=800,
         min_size=(900, 600),
     )
-    webview.start()
+    webview.start(gui='qt')
