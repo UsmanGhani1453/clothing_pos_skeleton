@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Database (created at runtime in ~/.clothing_pos/, but ignore any local copies too)
+*.db
+*.sqlite3
+shop.db
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec.bak
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log

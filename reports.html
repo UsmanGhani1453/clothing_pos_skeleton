@@ -44,12 +44,12 @@
   <table>
     <thead>
       <tr>
-        <th>Receipt</th>
         <th>Invoice #</th>
         <th>Date &amp; Time</th>
         <th>Payment</th>
         <th>Total</th>
         <th>Profit</th>
+        <th>Receipt</th>
       </tr>
     </thead>
     <tbody id="sales-table-body"></tbody>
@@ -111,6 +111,11 @@ async function loadReport() {
     const tr = document.createElement('tr');
     const dt = new Date(s.created_at);
     tr.innerHTML = `
+      <td>${escapeHtml(s.invoice_no)}</td>
+      <td>${dt.toLocaleString()}</td>
+      <td style="text-transform:capitalize;">${escapeHtml(s.payment_method)}</td>
+      <td>${formatCurrency(s.total_amount)}</td>
+      <td style="color:#16a34a; font-weight:600;">${formatCurrency(s.profit)}</td>
       <td>
         <a href="/api/sales/${s.id}/receipt.pdf" style="text-decoration:none;">
           <button class="secondary" style="padding:4px 10px; font-size:12px;">PDF</button>
@@ -119,11 +124,6 @@ async function loadReport() {
           <button class="secondary" style="padding:4px 10px; font-size:12px;">View</button>
         </a>
       </td>
-      <td>${escapeHtml(s.invoice_no)}</td>
-      <td>${dt.toLocaleString()}</td>
-      <td style="text-transform:capitalize;">${escapeHtml(s.payment_method)}</td>
-      <td>${formatCurrency(s.total_amount)}</td>
-      <td style="color:#16a34a; font-weight:600;">${formatCurrency(s.profit)}</td>
     `;
     tableBody.appendChild(tr);
   });

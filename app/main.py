@@ -4,6 +4,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, Response
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
+import asyncio
 import os
 import secrets
 
@@ -13,6 +15,7 @@ from .routers import inventory, billing, reports, auth as auth_router, settings 
 from .auth import get_current_user_optional, get_current_user, ensure_default_owner
 from .receipts import generate_receipt_pdf
 from .settings import get_all_settings
+from .backup import automated_backup_routine
 
 # Create tables if they don't exist
 models.Base.metadata.create_all(bind=engine)
@@ -24,7 +27,17 @@ try:
 finally:
     _db.close()
 
-app = FastAPI(title="Clothing Shop POS")
+# Define the lifespan manager to run our background backup loop
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start the backup routine in the background when the app starts
+    backup_task = asyncio.create_task(automated_backup_routine())
+    yield
+    # Safely cancel the task when the app is closed
+    backup_task.cancel()
+
+# Attach the lifespan to the FastAPI instance
+app = FastAPI(title="Clothing Shop POS", lifespan=lifespan)
 
 app.add_middleware(SessionMiddleware, secret_key=secrets.token_hex(32))
 

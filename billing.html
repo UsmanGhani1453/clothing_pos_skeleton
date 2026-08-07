@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+{% block title %}Billing - Shop POS{% endblock %}
+{% block content %}
+<h1>Billing</h1>
+
+<div style="display:flex; gap:20px; align-items:flex-start;">
+
+  <div class="card" style="flex:2;">
+    <h2>Find Product</h2>
+    <input type="text" id="product-search" placeholder="Search by name, or scan barcode..." autofocus style="width:100%; margin-bottom:12px;">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Size/Color</th><th>Price</th><th>Stock</th><th></th></tr>
+      </thead>
+      <tbody id="search-results"></tbody>
+    </table>
+    <p id="search-empty" style="color:#6b7280; padding:12px 0; display:none;">No matching products.</p>
+  </div>
+
+  <div class="card" style="flex:1; min-width:340px;">
+    <h2>Cart</h2>
+    <div id="cart-items"></div>
+    <p id="cart-empty" style="color:#6b7280; padding:12px 0;">Cart is empty. Add products from the left.</p>
+
+    <div class="form-row" style="margin-top:12px;">
+      <label style="flex:1;">Discount (Rs.)
+        <input type="number" id="discount" min="0" value="0">
+      </label>
+      <label style="flex:1;">Payment Method
+        <select id="payment-method">
+          <option value="cash">Cash</option>
+          <option value="easypaisa">Easypaisa</option>
+          <option value="jazzcash">JazzCash</option>
+          <option value="udhar">Udhar / Khata</option>
+          <option value="card">Card</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="form-row" id="customer-row" style="margin-top:12px; display:none;">
+      <label style="flex:1;">Customer (required for Udhar)
+        <select id="customer-select">
+          <option value="">Select customer...</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="total-line">
+      <span>Total</span>
+      <span id="cart-total">Rs. 0</span>
+    </div>
+
+    <div class="form-row" style="margin-top:16px;">
+      <button id="checkout-btn" style="flex:1;">Complete Sale</button>
+      <button type="button" class="secondary" id="clear-cart-btn">Clear</button>
+    </div>
+    <p id="checkout-error" style="color:#dc2626; font-size:14px;"></p>
+  </div>
+
+</div>
+
+<div id="receipt-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100;">
+  <div class="card" style="width:340px; max-height:80vh; overflow-y:auto;">
+    <h2>Sale Complete ✅</h2>
+    <div id="receipt-content" style="font-size:14px;"></div>
+    <button id="close-receipt-btn" style="width:100%; margin-top:16px;">New Sale</button>
+    <div class="form-row" style="margin-top:8px;">
+      <button type="button" class="secondary" id="print-receipt-btn" style="flex:1;">Print Receipt</button>
+      <button type="button" class="secondary" id="pdf-receipt-btn" style="flex:1;">Download PDF</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cart = []; // {product_id, name, price, quantity, stock_qty}
+let allProducts = [];
+
+const searchBox = document.getElementById('product-search');
+const searchResults = document.getElementById('search-results');
+const searchEmpty = document.getElementById('search-empty');
+const cartItemsEl = document.getElementById('cart-items');
+const cartEmptyEl = document.getElementById('cart-empty');
+const cartTotalEl = document.getElementById('cart-total');
+const discountInput = document.getElementById('discount');
+const checkoutError = document.getElementById('checkout-error');
+
+async function searchProducts() {
+  const query = searchBox.value.trim();
+  const url = query ? `/api/products/?search=${encodeURIComponent(query)}` : '/api/products/';
+  const products = await fetch(url).then(r => r.json());
+  allProducts = products;
+  renderSearchResults(products);
+}
+
+function renderSearchResults(products) {
+  searchResults.innerHTML = '';
+  searchEmpty.style.display = products.length === 0 ? 'block' : 'none';
+
+  products.slice(0, 30).forEach(p => {
+    const tr = document.createElement('tr');
+    const outOfStock = p.stock_qty <= 0;
+    tr.innerHTML = `
+      <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.size || '-')} / ${escapeHtml(p.color || '-')}</td>
+      <td>${formatCurrency(p.sale_price)}</td>
+      <td>${p.stock_qty}</td>
+      <td><button class="add-btn" style="padding:6px 12px; font-size:13px;" ${outOfStock ? 'disabled' : ''}>${outOfStock ? 'Out' : 'Add'}</button></td>
+    `;
+    tr.querySelector('.add-btn').addEventListener('click', () => addToCart(p));
+    searchResults.appendChild(tr);
+  });
+}
+
+function addToCart(product) {
+  const existing = cart.find(item => item.product_id === product.id);
+  if (existing) {
+    if (existing.quantity + 1 > product.stock_qty) {
+      alert(`Only ${product.stock_qty} in stock.`);
+      return;
+    }
+    existing.quantity += 1;
+  } else {
+    cart.push({
+      product_id: product.id,
+      name: product.name,
+      price: product.sale_price,
+      quantity: 1,
+      stock_qty: product.stock_qty,
+    });
+  }
+  renderCart();
+}
+
+function changeQty(productId, delta) {
+  const item = cart.find(i => i.product_id === productId);
+  if (!item) return;
+  const newQty = item.quantity + delta;
+  if (newQty <= 0) {
+    cart = cart.filter(i => i.product_id !== productId);
+  } else if (newQty > item.stock_qty) {
+    alert(`Only ${item.stock_qty} in stock.`);
+    return;
+  } else {
+    item.quantity = newQty;
+  }
+  renderCart();
+}
+
+function removeFromCart(productId) {
+  cart = cart.filter(i => i.product_id !== productId);
+  renderCart();
+}
+
+function calcSubtotal() {
+  return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+}
+
+function renderCart() {
+  cartItemsEl.innerHTML = '';
+  cartEmptyEl.style.display = cart.length === 0 ? 'block' : 'none';
+
+  cart.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'cart-row';
+    row.innerHTML = `
+      <div>
+        <div>${escapeHtml(item.name)}</div>
+        <div style="color:#6b7280; font-size:12px;">${formatCurrency(item.price)} each</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="secondary qty-minus" style="padding:2px 10px;">-</button>
+        <span>${item.quantity}</span>
+        <button class="secondary qty-plus" style="padding:2px 10px;">+</button>
+        <span style="min-width:70px; text-align:right; font-weight:600;">${formatCurrency(item.price * item.quantity)}</span>
+        <button class="remove-item" style="padding:2px 8px; background:#fee2e2; color:#dc2626; border:none;">✕</button>
+      </div>
+    `;
+    row.querySelector('.qty-minus').addEventListener('click', () => changeQty(item.product_id, -1));
+    row.querySelector('.qty-plus').addEventListener('click', () => changeQty(item.product_id, 1));
+    row.querySelector('.remove-item').addEventListener('click', () => removeFromCart(item.product_id));
+    cartItemsEl.appendChild(row);
+  });
+
+  updateTotal();
+}
+
+function updateTotal() {
+  const subtotal = calcSubtotal();
+  const discount = parseFloat(discountInput.value) || 0;
+  const total = Math.max(subtotal - discount, 0);
+  cartTotalEl.innerText = formatCurrency(total);
+}
+
+discountInput.addEventListener('input', updateTotal);
+
+const paymentMethodSelect = document.getElementById('payment-method');
+const customerRow = document.getElementById('customer-row');
+const customerSelect = document.getElementById('customer-select');
+
+async function loadCustomersForBilling() {
+  try {
+    const customers = await fetch('/api/customers/').then(r => r.json());
+    customerSelect.innerHTML = '<option value="">Select customer...</option>' +
+      customers.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.phone ? ' (' + escapeHtml(c.phone) + ')' : ''}</option>`).join('');
+  } catch (err) {
+    // ignore - customer list is only needed for Udhar
+  }
+}
+
+paymentMethodSelect.addEventListener('change', () => {
+  const isUdhar = paymentMethodSelect.value === 'udhar';
+  customerRow.style.display = isUdhar ? 'flex' : 'none';
+  if (isUdhar) loadCustomersForBilling();
+});
+
+document.getElementById('clear-cart-btn').addEventListener('click', () => {
+  if (cart.length === 0) return;
+  if (confirm('Clear the cart?')) {
+    cart = [];
+    renderCart();
+  }
+});
+
+document.getElementById('checkout-btn').addEventListener('click', async () => {
+  checkoutError.innerText = '';
+  if (cart.length === 0) {
+    checkoutError.innerText = 'Cart is empty.';
+    return;
+  }
+
+  const paymentMethod = paymentMethodSelect.value;
+  const customerId = customerSelect.value ? parseInt(customerSelect.value, 10) : null;
+
+  if (paymentMethod === 'udhar' && !customerId) {
+    checkoutError.innerText = 'Please select a customer for Udhar / Khata.';
+    return;
+  }
+
+  const payload = {
+    items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity })),
+    discount: parseFloat(discountInput.value) || 0,
+    payment_method: paymentMethod,
+    cashier: '',
+    customer_id: customerId,
+  };
+
+  try {
+    const res = await fetch('/api/sales/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      checkoutError.innerText = `Server error (status ${res.status}). Check the server logs.`;
+      return;
+    }
+
+    if (!res.ok) {
+      checkoutError.innerText = data.detail || `Checkout failed (status ${res.status}).`;
+      return;
+    }
+
+    const sale = data;
+    showReceipt(sale);
+    cart = [];
+    renderCart();
+    discountInput.value = 0;
+    searchProducts(); // refresh stock numbers
+  } catch (err) {
+    checkoutError.innerText = 'Could not reach the server. Is it still running?';
+  }
+});
+
+function showReceipt(sale) {
+  const modal = document.getElementById('receipt-modal');
+  const content = document.getElementById('receipt-content');
+  modal.dataset.saleId = sale.id;
+  let itemsHtml = sale.items.map(i => `
+    <div class="cart-row">
+      <span>${escapeHtml(i.product_name)} x${i.quantity}</span>
+      <span>${formatCurrency(i.subtotal)}</span>
+    </div>
+  `).join('');
+
+  content.innerHTML = `
+    <p style="color:#6b7280;">Invoice: ${sale.invoice_no}</p>
+    <p style="color:#6b7280; margin-bottom:12px;">${new Date(sale.created_at).toLocaleString()}</p>
+    ${itemsHtml}
+    <div class="cart-row"><span>Discount</span><span>-${formatCurrency(sale.discount)}</span></div>
+    <div class="total-line"><span>Total (${sale.payment_method})</span><span>${formatCurrency(sale.total_amount)}</span></div>
+  `;
+  modal.style.display = 'flex';
+}
+
+document.getElementById('print-receipt-btn').addEventListener('click', () => {
+  const saleId = document.getElementById('receipt-modal').dataset.saleId;
+  window.location.href = `/receipt/${saleId}?print=1`;
+});
+
+document.getElementById('pdf-receipt-btn').addEventListener('click', () => {
+  const saleId = document.getElementById('receipt-modal').dataset.saleId;
+  window.location.href = `/api/sales/${saleId}/receipt.pdf`;
+});
+
+document.getElementById('close-receipt-btn').addEventListener('click', () => {
+  document.getElementById('receipt-modal').style.display = 'none';
+  searchBox.focus();
+});
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.innerText = str;
+  return div.innerHTML;
+}
+
+let searchTimeout;
+searchBox.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(searchProducts, 200);
+});
+
+// Barcode scanners act as keyboards + send Enter; auto-add if exact match
+searchBox.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const query = searchBox.value.trim();
+    const exact = allProducts.find(p => p.barcode === query);
+    if (exact) {
+      addToCart(exact);
+      searchBox.value = '';
+      searchProducts();
+    }
+  }
+});
+
+renderCart();
+searchProducts();
+</script>
+{% endblock %}
