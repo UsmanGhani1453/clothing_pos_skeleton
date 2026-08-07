@@ -49,10 +49,8 @@ def sales_summary(
         sale_profit = s.total_amount - sale_cost
         total_profit += sale_profit
 
-        # There is no apparent problem with this code.
-        # It appends a summary dict for each sale to the list.
-        # Just for defensive coding: ensure `s.created_at` is not None.
         sales_data.append({
+            "id": s.id,
             "invoice_no": s.invoice_no,
             "total_amount": s.total_amount,
             "profit": sale_profit,

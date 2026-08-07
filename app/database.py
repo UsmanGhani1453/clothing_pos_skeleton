@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
+import secrets
 from pathlib import Path
 
 # Create a persistent directory in the user's home folder
@@ -22,3 +23,23 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+SESSION_SECRET_PATH = USER_DIR / "session_secret.key"
+
+
+def get_session_secret() -> str:
+    """Load the session-signing secret from disk, creating it on first run.
+
+    This must stay the same across server restarts, otherwise every login
+    session becomes invalid (and looks like a random "Not authenticated"
+    error) the moment the app restarts.
+    """
+    if SESSION_SECRET_PATH.exists():
+        secret = SESSION_SECRET_PATH.read_text().strip()
+        if secret:
+            return secret
+
+    secret = secrets.token_hex(32)
+    SESSION_SECRET_PATH.write_text(secret)
+    return secret

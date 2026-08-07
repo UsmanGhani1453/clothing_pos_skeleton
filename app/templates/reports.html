@@ -112,11 +112,9 @@ async function loadReport() {
     const dt = new Date(s.created_at);
     tr.innerHTML = `
       <td>
-        <a href="/api/sales/${s.id}/receipt.pdf" style="text-decoration:none;">
-          <button class="secondary" style="padding:4px 10px; font-size:12px;">PDF</button>
-        </a>
+        <button type="button" class="secondary pdf-btn" style="padding:4px 10px; font-size:12px;">PDF</button>
         <a href="/receipt/${s.id}" target="_blank" style="text-decoration:none;">
-          <button class="secondary" style="padding:4px 10px; font-size:12px;">View</button>
+          <button type="button" class="secondary" style="padding:4px 10px; font-size:12px;">View</button>
         </a>
       </td>
       <td>${escapeHtml(s.invoice_no)}</td>
@@ -125,8 +123,45 @@ async function loadReport() {
       <td>${formatCurrency(s.total_amount)}</td>
       <td style="color:#16a34a; font-weight:600;">${formatCurrency(s.profit)}</td>
     `;
+    tr.querySelector('.pdf-btn').addEventListener('click', () => downloadReceipt(s.id, s.invoice_no));
     tableBody.appendChild(tr);
   });
+}
+
+async function downloadReceipt(saleId, invoiceNo) {
+  try {
+    const res = await fetch(`/api/sales/${saleId}/receipt.pdf`);
+
+    if (res.status === 401) {
+      alert('Your session has expired. Please log out and log back in, then try again.');
+      window.location.href = '/login';
+      return;
+    }
+
+    if (!res.ok) {
+      let detail = `Failed to generate receipt (status ${res.status}).`;
+      try {
+        const err = await res.json();
+        detail = err.detail || detail;
+      } catch (_) {
+        // response wasn't JSON - keep the generic message
+      }
+      alert(detail);
+      return;
+    }
+
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `${invoiceNo}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    alert('Could not reach the server. Is it still running?');
+  }
 }
 
 function escapeHtml(str) {

@@ -7,10 +7,9 @@ from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import asyncio
 import os
-import secrets
 
 from . import models
-from .database import engine, get_db, SessionLocal
+from .database import engine, get_db, SessionLocal, get_session_secret
 from .routers import inventory, billing, reports, auth as auth_router, settings as settings_router, customers
 from .auth import get_current_user_optional, get_current_user, ensure_default_owner
 from .receipts import generate_receipt_pdf
@@ -39,7 +38,7 @@ async def lifespan(app: FastAPI):
 # Attach the lifespan to the FastAPI instance
 app = FastAPI(title="Clothing Shop POS", lifespan=lifespan)
 
-app.add_middleware(SessionMiddleware, secret_key=secrets.token_hex(32))
+app.add_middleware(SessionMiddleware, secret_key=get_session_secret())
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
