@@ -16,6 +16,7 @@
     <button type="button" class="secondary" id="today-btn">Today</button>
     <button type="button" class="secondary" id="week-btn">Last 7 Days</button>
     <button type="button" class="secondary" id="month-btn">This Month</button>
+    <button type="button" class="secondary" id="export-btn" style="margin-left:auto;">Export CSV</button>
   </div>
 </div>
 
@@ -90,6 +91,45 @@ document.getElementById('today-btn').addEventListener('click', () => setRange(0)
 document.getElementById('week-btn').addEventListener('click', () => setRange(6));
 document.getElementById('month-btn').addEventListener('click', setThisMonth);
 document.getElementById('apply-btn').addEventListener('click', loadReport);
+document.getElementById('export-btn').addEventListener('click', exportCsv);
+
+async function exportCsv() {
+  const start = startInput.value;
+  const end = endInput.value;
+  try {
+    const res = await fetch(`/api/reports/export?start=${start}&end=${end}`);
+
+    if (res.status === 401) {
+      alert('Your session has expired. Please log out and log back in, then try again.');
+      window.location.href = '/login';
+      return;
+    }
+
+    if (!res.ok) {
+      let detail = `Failed to export report (status ${res.status}).`;
+      try {
+        const err = await res.json();
+        detail = err.detail || detail;
+      } catch (_) {
+        // response wasn't JSON - keep the generic message
+      }
+      alert(detail);
+      return;
+    }
+
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `sales_report_${start}_to_${end}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    alert('Could not reach the server. Is it still running?');
+  }
+}
 
 async function loadReport() {
   const start = startInput.value;
