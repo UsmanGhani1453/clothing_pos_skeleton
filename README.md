@@ -76,50 +76,20 @@ You don't need either to use the app:
 
 ## 📦 Packaging as a Standalone Executable
 
-To compile the application into a single executable file without a background terminal, use PyInstaller. First, ensure PyInstaller is installed:
+To compile the application into a single, self-contained executable file (no separate folder of DLLs/libraries to keep alongside it — it's safe to copy or move on its own), use the included `ClothingShopPOS.spec`. First, ensure PyInstaller is installed:
 ```bash
 pip install pyinstaller
 ```
 
-### For Linux
-Run the following build command from the root directory to bundle the application. Note the use of colons (`:`) and backslashes (`\`) for line breaks:
+Then, from the project root (same command on Linux, macOS, and Windows — the spec file already encodes the platform-specific `--add-data` separators and hidden imports):
 
 ```bash
-pyinstaller --name "ClothingShopPOS" \
---windowed \
---add-data "app/templates:app/templates" \
---add-data "app/static:app/static" \
---hidden-import="uvicorn.logging" \
---hidden-import="uvicorn.loops" \
---hidden-import="uvicorn.loops.auto" \
---hidden-import="uvicorn.protocols" \
---hidden-import="uvicorn.protocols.http.auto" \
---hidden-import="uvicorn.protocols.websockets.auto" \
---hidden-import="uvicorn.lifespan.on" \
---hidden-import="uvicorn.lifespan.off" \
-main.py
+pyinstaller ClothingShopPOS.spec
 ```
 
-### For Windows
-Run the following build command from a Windows environment. Note the use of semicolons (`;`) in the `--add-data` flags and carets (`^`) for line breaks in the command prompt:
+The compiled executable will be a single file at `dist/ClothingShopPOS` (or `dist/ClothingShopPOS.exe` on Windows). This one file is fully portable — you can copy, move, or rename it on its own and it'll still run, since everything it needs is packed inside it. (The `--onefile`-style build does mean every launch unpacks itself to a temp folder first, so startup is a couple seconds slower than a bare Python process — this is normal.)
 
-```bash
-pyinstaller --name "ClothingShopPOS" ^
---windowed ^
---add-data "app/templates;app/templates" ^
---add-data "app/static;app/static" ^
---hidden-import="uvicorn.logging" ^
---hidden-import="uvicorn.loops" ^
---hidden-import="uvicorn.loops.auto" ^
---hidden-import="uvicorn.protocols" ^
---hidden-import="uvicorn.protocols.http.auto" ^
---hidden-import="uvicorn.protocols.websockets.auto" ^
---hidden-import="uvicorn.lifespan.on" ^
---hidden-import="uvicorn.lifespan.off" ^
-main.py
-```
-
-The compiled executable will be located in the `dist/ClothingShopPOS` directory.
+⚠️ If you ever edit the app's dependencies, hidden imports, or bundled data (`app/templates`, `app/static`), update `ClothingShopPOS.spec` to match rather than passing flags on the command line, so the two don't drift out of sync.
 
 ## 🔌 API Endpoint Reference
 

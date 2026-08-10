@@ -117,11 +117,27 @@ async function exportCsv() {
       return;
     }
 
-    const blob = await res.blob();
+    const csvText = await res.text();
+    const filename = `sales_report_${start}_to_${end}.csv`;
+
+    // Running inside the PyWebView desktop app: browser-style blob downloads
+    // don't trigger a save dialog there, so use the native bridge instead
+    // (see Api.save_csv in main.py), which opens a real OS "Save As" dialog.
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_csv) {
+      const saved = await window.pywebview.api.save_csv(filename, csvText);
+      if (saved === false) {
+        // user cancelled the save dialog - not an error, nothing to do
+        return;
+      }
+      return;
+    }
+
+    // Plain browser tab (e.g. `uvicorn app.main:app --reload`): normal download.
+    const blob = new Blob([csvText], { type: 'text/csv' });
     const blobUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = blobUrl;
-    link.download = `sales_report_${start}_to_${end}.csv`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
